@@ -1,0 +1,84 @@
+# For audio files larger than 400 MiB, it is recommended to use the long audio pipeline.
+# ===================================================================
+# Unified Pipeline Configurations
+# ===================================================================
+# These settings are shared by both the standard and long-audio pipelines.
+common:
+  # --- Model and Precision ---
+  # Description: The Hugging Face model ID to load. This is the most critical parameter, defining the model's size and capabilities.
+  # Impact: Larger models (e.g., 'large-v3') are more accurate but slower and use more memory. Smaller models are faster but less accurate.
+
+  # Description: The data type for model computations (e.g., "float16", "bfloat16", "float32").
+  # Impact: "bfloat16" offers a great balance of speed and precision on modern TPUs/GPUs. "float16" is faster but can be less stable. "float32" is the most stable but is significantly slower and uses more memory.
+  dtype: "bfloat16"
+
+  # --- Attention Mechanism ---
+  # Description: The self-attention implementation to use in the model's encoder and decoder.
+  # Options: "original", "splash", "flash", "local".
+  # Impact: "splash" or "flash" are highly optimized implementations that can significantly improve performance (higher RTFx) on compatible hardware (like TPUs) with minimal to no impact on accuracy. "original" is the safe, default implementation.
+  encoder_attention_implementation: "splash"
+  decoder_attention_implementation: "original"
+
+  # --- Batching and Chunking ---
+  # Description: The global default batch size for inference. The pipeline will try to group this many audio chunks together.
+  # Impact: A larger batch size generally leads to higher throughput (better RTFx) by maximizing hardware utilization. For many TPU/GPU setups, 80 is a highly performant value. This value should be a multiple of the number of available devices.
+  global_batch_size: 80
+
+  # Description: A predefined list of batch sizes for padding. The pipeline pads batches to the next largest size in this list to maintain a limited number of compiled JAX functions.
+  # Impact: This is a performance optimization. The values should be chosen based on the target `batch_size` to minimize padding while keeping the number of compiled variations low.
+  batch_buckets: [4, 40, 80]
+
+  # Description: The length of audio chunks in seconds that are processed by the model.
+  # Impact: The default is 30.0, as Whisper was trained on 30-second clips. Changing this is not recommended as it can lead to unexpected behavior or lower accuracy.
+  chunk_length_s: 30.0
+
+  # Description: The stride between audio chunks in seconds, used for long audio files. A value of 5.0 means there is a 25-second overlap between consecutive chunks.
+  # Impact: A smaller stride (more overlap) can improve accuracy on long audio files by providing more context for word timestamps, but it increases the total number of chunks to process, slightly reducing overall performance. The default is `chunk_length_s / 6.0`.
+  stride_length_s: 5.0
+
+  # --- Performance ---
+  # Description: The number of parallel threads used for audio preprocessing (loading and chunking).
+  # Impact: A higher number can speed up the initial data loading phase, especially when processing many files concurrently. If set to 0 or null, it defaults to a system-dependent value (e.g., `min(32, os.cpu_count() + 4)`).
+  preprocessing_workers: 32
+  audio_path: "/home/brathinam_google_com/14Oct/whisper-on-jax/asr_audio_new"
+  task: "transcribe"
+  # Timeout for batch accumulation. Higher = better throughput, Lower = better latency.
+  batch_assembly_timeout_s: 0.2
+
+# ===================================================================
+# Generation Behavior Configurations
+# ===================================================================
+# These settings control the decoding strategy of the model.
+generation:
+  # Description: The maximum number of tokens the model can generate for a single audio chunk.
+  # Impact: This is a failsafe. The model should stop on its own by generating an EOS token. If it fails to do so, this parameter prevents infinite loops. It should be kept at the model's default (e.g., 448 for Whisper).
+  max_length: 240
+
+  # Description: The number of beams to use for beam search. A value of 1 means greedy decoding.
+  # Impact: `num_beams=1` (greedy) is the fastest possible setting. Increasing this (e.g., to 5) activates beam search, which is significantly slower but can improve transcription accuracy by exploring multiple possible token sequences.
+  num_beams: 1
+
+  # Description: A flag that only has an effect when `num_beams > 1`.
+  # Impact: If `True`, the beam search can stop as soon as the best sequence is found, without waiting for all other beams to finish. This provides a significant speed-up for beam search with a negligible impact on accuracy.
+  early_stopping: True
+
+  # Description: Whether to use sampling instead of deterministic decoding (greedy/beam search).
+  # Impact: For transcription, this should always be `False`. Setting it to `True` would make the output random and non-reproducible, which is not desirable for accuracy.
+  do_sample: False
+
+  # Description: A parameter for sampling that modulates the next token probabilities. Only used if `do_sample=True`.
+  # Impact: Has no effect on the default transcription settings.
+  temperature: 1.0
+
+  # --- Post-Processing ---
+  # Description: Whether to remove special tokens (like `<|startoftranscript|>`, `<|notimestamps|>`) from the final text output.
+  # Impact: Setting this to `True` provides a cleaner, human-readable transcription. It has no impact on performance, only on the final presentation of the text.
+  skip_special_tokens: True
+
+# ===================================================================
+# Long Audio Pipeline Specific Configurations
+# ===================================================================
+long_audio:
+  # --- Performance Tuning ---
+  # Timeout in seconds for the patient batcher to wait for more jobs to arrive.
+  batch_assembly_timeout_s: 0.2

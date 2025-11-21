@@ -1,0 +1,74 @@
+benchmarks/jax_compilation_cache/
+benchmarks/videoplayback.wav
+benchmarks/videoplayback.mp3
+videoplayback.wav
+videoplayback.mp3
+whisper_jax/__pycache__
+whisper_jax.egg-info
+reference_implementation
+asr_audio
+jax_compilation_cache
+__pycache__
+
+# Custom ignores for bharath_12sept_bucket_async branch
+
+# Experimental scripts
+modeling_flax_whisper_paged.py
+whisper_jax/modeling_flax_whisper_paged.py
+whisper_jax/pjit_pipeline.py
+whisper_jax/pipeline _*.py
+whisper_jax/pipeline 3sept_attention_mask.py
+
+# Other scripts
+debug_processor.py
+introspect.py
+xla_tuning.txt
+xla_flag_script.sh
+
+# Notebooks
+whisper-jax-tpu.ipynb
+
+# Result files
+experiment_num_beams_1.md
+phase_*.txt
+
+# Trace directories
+tpu_traces_*/
+
+# Ignore benchmark-specific caches and traces
+benchmarks/xprof_traces_collection/
+benchmarks/.jax_cache/
+benchmarks/videoplayback_16k.wav
+
+# Added by Gemini CLI
+.gitignoree
+pipeline_long_audio_instrumented.py
+benchmarks/experimental/
+experimental/
+
+# --- CLEANUP 2025-11-19 ---
+# 1. Backup Files
+*.bak
+*.py.bak
+
+# 2. Redundant/Legacy Benchmarks
+benchmarks/libri-long-turbo.py
+benchmarks/libri-long-traced.py
+benchmarks/libri-long-configurable.py
+benchmarks/libri-short-configurable.py
+benchmarks/direct-audio-pipeline.py
+benchmarks/compare_streaming_strategies*.py
+benchmarks/test_streaming_*.py
+
+# 3. Experimental Folder (Already partly ignored, reinforcing)
+experimental/
+whisper_jax/experimental/
+
+# 5. Root Duplicates
+pipeline_long_audio_instrumented.py
+
+# 6. Caches
+**/.jax_cache/
+server.log
+transcription_full.txt
+benchmarks/transcription_full.txt
