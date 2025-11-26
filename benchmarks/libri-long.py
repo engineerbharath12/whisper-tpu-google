@@ -41,11 +41,12 @@ logging.set_verbosity_error()
 # --- Audio File Paths ---
 AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-on-jax/asr_audio_new"
 SHORT_AUDIO_FILE = os.path.join(AUDIO_BASE_PATH, "18s", "medical_domain_test.wav")
-LONG_AUDIO_FILE = "/home/brathinam_google_com/14Oct/whisper-on-jax/benchmarks/videoplayback_5min.wav"
+LONG_AUDIO_FILE = "/home/brathinam_google_com/14Oct/whisper-on-jax/benchmarks/videoplayback.wav"
 
 def run_long_file_benchmark(pipeline, concurrency: int):
     """Tests the pipeline processing for a single long audio file with a given concurrency."""
-    console.print(Panel(f"[bold blue]Test: Long-File Benchmark with Concurrency: {concurrency}[/bold blue]", expand=False))
+    SPEED_FACTOR = 3.0
+    console.print(Panel(f"[bold blue]Test: Long-File Benchmark (On-the-fly Speed {SPEED_FACTOR}x) with Concurrency: {concurrency}[/bold blue]", expand=False))
 
     if not os.path.exists(LONG_AUDIO_FILE):
         console.print(f"[bold red]❌ ERROR: Long audio file not found at {LONG_AUDIO_FILE}. Skipping test.[/bold red]")
@@ -57,12 +58,19 @@ def run_long_file_benchmark(pipeline, concurrency: int):
     benchmark_files = [LONG_AUDIO_FILE] * concurrency
     
     start_time = time.time()
-    results = pipeline(benchmark_files, task="transcribe", return_timestamps=False, stride_length_s=2.0)
+    # Pass speed_factor to the pipeline directly
+    results = pipeline(
+        benchmark_files, 
+        task="transcribe", 
+        return_timestamps=False, 
+        stride_length_s=2.0,
+        speed_factor=SPEED_FACTOR
+    )
     total_time = time.time() - start_time
 
     rtfx = total_audio_duration_s / total_time if total_time > 0 else float("inf")
 
-    table = Table(title="FlaxWhisperPipline Performance (Long File)")
+    table = Table(title=f"FlaxWhisperPipline Performance (Long File - {SPEED_FACTOR}x Speed)")
     table.add_column("Concurrent Files", justify="center", style="blue")
     table.add_column("Audio Length (s)", justify="center", style="cyan")
     table.add_column("Total Time (s)", justify="right", style="magenta")
@@ -80,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_id",
         type=str,
-        default="openai/whisper-large-v3",
+        default="openai/whisper-large-v3-turbo",
         help="The Hugging Face model ID.",
     )
     parser.add_argument(
@@ -88,6 +96,12 @@ if __name__ == "__main__":
         type=int,
         default=80,
         help="Batch size to use for inference.",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=10,
+        help="Number of concurrent files to process.",
     )
     args = parser.parse_args()
 
@@ -132,7 +146,7 @@ if __name__ == "__main__":
         console.print("--- Comprehensive Warm-up Complete ---")
 
         # Run only the long file benchmark
-        run_long_file_benchmark(long_audio_pipeline, 10)
+        run_long_file_benchmark(long_audio_pipeline, args.concurrency)
         
         console.print("\n" * 5)
 

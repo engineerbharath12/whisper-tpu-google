@@ -22,6 +22,7 @@ import subprocess
 import threading
 import time
 import yaml
+import librosa  # Import librosa for Slaney filters
 from functools import partial
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 
@@ -86,7 +87,7 @@ class FlaxWhisperPmapPipeline:
     BATCH_BUCKETS = common_config.get("batch_buckets", [4, 40, 80])
 
     def __init__(self, checkpoint, dtype=default_dtype, batch_size=None, max_length=None, skip_special_tokens: bool = generation_config_values.get("skip_special_tokens", True), **kwargs):
-        logger.info(f"🚀 Initializing FlaxWhisperPmapPipeline for checkpoint: {checkpoint}")
+        logger.info(f"Initialising FlaxWhisperPmapPipeline for checkpoint: {checkpoint}")
         self.checkpoint = checkpoint
         self.dtype = dtype
         self.config = WhisperConfig.from_pretrained(self.checkpoint)
@@ -96,8 +97,11 @@ class FlaxWhisperPmapPipeline:
         self.tokenizer = tokenizer_cls.from_pretrained(checkpoint)
         self.skip_special_tokens = skip_special_tokens
         
-        self.use_tpu_features = self.checkpoint != "openai/whisper-large-v3-turbo"
-        logger.info(f"--- 💡 Feature Extraction Method: {'TPU-based' if self.use_tpu_features else 'CPU-based'} ---")
+        # --- FEATURE EXTRACTION FIX ---
+        # Now that we have fixed the JAX implementation to match Hugging Face (Slaney + Clamping),
+        # we can safely use TPU feature extraction for ALL models, including V3 Large.
+        self.use_tpu_features = kwargs.get("use_tpu_features", True)
+        logger.info(f"--- Feature Extraction Method: {'TPU-based' if self.use_tpu_features else 'CPU-based'} ---")
         
         has_flax_weights = _flax_weights_exist(self.checkpoint)
         
@@ -134,12 +138,14 @@ class FlaxWhisperPmapPipeline:
             out_axes=0, 
             static_broadcasted_argnums=(3, 4, 5, 6)
         )
-        logger.info("✅ `pmap` pipeline ready.")
+        logger.info("`pmap` pipeline ready.")
 
     def __call__(self, inputs, 
         chunk_length_s: float = common_config.get("chunk_length_s", 30.0),
         stride_length_s: float = common_config.get("stride_length_s"),
-        batch_size=None, language=None, task=None, return_timestamps=None, return_language=None, max_length=None, **kwargs):
+        batch_size=None, language=None, task=None, return_timestamps=None, return_language=None, max_length=None, 
+        speed_factor: float = 1.0, # New param
+        **kwargs):
         effective_batch_size = batch_size if batch_size is not None else self.batch_size
         if effective_batch_size % self.min_batch_size != 0:
             raise ValueError(f"Batch size must be a multiple of devices: {effective_batch_size} vs {self.min_batch_size}.")
@@ -168,7 +174,7 @@ class FlaxWhisperPmapPipeline:
 
         with ThreadPoolExecutor(max_workers=len(inputs)) as executor:
             for i, file_path in enumerate(inputs):
-                executor.submit(self._file_processor_worker, file_path, chunk_length_s, stride_length_s, job_queue, post_queue, i, return_timestamps, return_language)
+                executor.submit(self._file_processor_worker, file_path, chunk_length_s, stride_length_s, job_queue, post_queue, i, return_timestamps, return_language, speed_factor)
 
         job_queue.put(None)
         self.fetch_queue.put(None)
@@ -181,9 +187,9 @@ class FlaxWhisperPmapPipeline:
         logger.info("...transcription finished.")
         return final_results if is_list_input else final_results[0]
 
-    def _file_processor_worker(self, file_path, chunk_length_s, stride_length_s, job_queue, post_queue, file_index, return_timestamps, return_language):
+    def _file_processor_worker(self, file_path, chunk_length_s, stride_length_s, job_queue, post_queue, file_index, return_timestamps, return_language, speed_factor):
         file_futures = []
-        self._streaming_preprocess_worker(file_path, chunk_length_s, stride_length_s, job_queue, file_futures)
+        self._streaming_preprocess_worker(file_path, chunk_length_s, stride_length_s, job_queue, file_futures, speed_factor)
         
         wait(file_futures)
         unpacked_outputs = []
@@ -196,12 +202,14 @@ class FlaxWhisperPmapPipeline:
             logger.error(f"Failed to retrieve results for file {file_index}: {e}")
             post_queue.put((file_index, e, return_timestamps, return_language))
 
-    def _streaming_preprocess_worker(self, file_path, chunk_length_s, stride_length_s, job_queue, futures_list):
+    def _streaming_preprocess_worker(self, file_path, chunk_length_s, stride_length_s, job_queue, futures_list, speed_factor=1.0):
         try:
-            command = [
-                'ffmpeg', '-i', file_path, '-f', 'f32le', '-ar', str(self.feature_extractor.sampling_rate),
-                '-ac', '1', '-nostdin', 'pipe:1'
-            ]
+            command = ['ffmpeg', '-i', file_path]
+            if speed_factor != 1.0:
+                command.extend(['-filter:a', f'atempo={speed_factor}'])
+            
+            command.extend(['-f', 'f32le', '-ar', str(self.feature_extractor.sampling_rate), '-ac', '1', '-nostdin', 'pipe:1'])
+            
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
             chunk_len = round(chunk_length_s * self.feature_extractor.sampling_rate)
@@ -443,42 +451,34 @@ class FlaxWhisperPmapPipeline:
         padded_waveform = jnp.pad(waveform, padding, mode="reflect")
         padded_waveform = padded_waveform.reshape(1, -1, 1)
         frames = jax.lax.conv_general_dilated_patches(
-            padded_waveform,
-            (win_length,),
-            (hop_length,),
-            'VALID',
-            dimension_numbers=('NWC', 'WIO', 'NWC')
+            padded_waveform, (win_length,), (hop_length,), 'VALID', dimension_numbers=('NWC', 'WIO', 'NWC')
         )[0]
         windowed_frames = frames * window
         stft_matrix = jnp.fft.rfft(windowed_frames, n=n_fft)
         return stft_matrix
 
+    # FIX: Use Librosa filters for correctness (Slaney)
     @staticmethod
     def _mel_filterbank(sr, n_fft, n_mels, fmin, fmax):
-        def hz_to_mel(freq):
-            return 2595.0 * jnp.log10(1.0 + freq / 700.0)
-        def mel_to_hz(mel):
-            return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
-        mel_min = hz_to_mel(fmin)
-        mel_max = hz_to_mel(fmax)
-        mel_points = jnp.linspace(mel_min, mel_max, n_mels + 2)
-        hz_points = mel_to_hz(mel_points)
-        fft_freqs = jnp.linspace(0, sr / 2, n_fft // 2 + 1)
-        ramps = hz_points[:, None] - fft_freqs[None, :]
-        lower = -ramps[:-2] / (hz_points[1:-1, None] - hz_points[:-2, None])
-        upper = ramps[2:] / (hz_points[2:, None] - hz_points[1:-1, None])
-        fb = jnp.maximum(jnp.zeros_like(lower), jnp.minimum(lower, upper))
-        return fb
+        # Calculate on CPU using librosa (Slaney norm)
+        mels = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels)
+        return jnp.array(mels)
 
     @staticmethod
     def _jax_feature_extractor(waveform, sr, n_fft, hop_length, win_length, n_mels, fmin, fmax, target_feature_length):
         window = jnp.hanning(win_length)
         stft_matrix = FlaxWhisperPmapPipeline._stft(waveform, n_fft, hop_length, win_length, window)
         power_spectrogram = jnp.abs(stft_matrix) ** 2
+        
         mel_filters = FlaxWhisperPmapPipeline._mel_filterbank(sr, n_fft, n_mels, fmin, fmax)
         mel_spectrogram = jnp.dot(power_spectrogram, mel_filters.T)
+        
+        # FIX: Use Clamping Normalization (Whisper Standard) instead of Instance Norm
         log_mel_spectrogram = jnp.log10(jnp.maximum(mel_spectrogram, 1e-10))
-        log_mel_spectrogram = (log_mel_spectrogram - jnp.mean(log_mel_spectrogram)) / jnp.sqrt(jnp.var(log_mel_spectrogram) + 1e-7)
+        max_val = jnp.max(log_mel_spectrogram)
+        log_mel_spectrogram = jnp.maximum(log_mel_spectrogram, max_val - 8.0)
+        log_mel_spectrogram = (log_mel_spectrogram + 4.0) / 4.0
+        
         log_mel_spectrogram = log_mel_spectrogram[:target_feature_length, :]
         log_mel_spectrogram = log_mel_spectrogram.T
         return log_mel_spectrogram

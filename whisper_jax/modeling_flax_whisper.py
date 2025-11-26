@@ -56,7 +56,7 @@ from transformers.utils import (
 from whisper_jax import layers
 from whisper_jax.layers import with_sharding_constraint
 from .attention_variants import FlaxWhisperAttention, FlaxWhisperAttentionSplash
-
+from .ragged_paged_attention_module import FlaxWhisperRaggedPagedAttention
 
 logger = logging.get_logger(__name__)
 

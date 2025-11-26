@@ -72,3 +72,27 @@ pipeline_long_audio_instrumented.py
 server.log
 transcription_full.txt
 benchmarks/transcription_full.txt
+
+# Benchmarking Reports and Artifacts
+PERFORMANCE_ANALYSIS.md
+POST_FIX_BENCHMARKS.md
+SPEED_BENCHMARK_REPORT.md
+TPU_FEATURE_EXTRACTION_REPORT.md
+BENCHMARK_RESULTS.md
+experiment_num_beams_1.md
+xla_tuning.txt
+long_audio_transcription*.txt
+
+# Logs
+*.log
+server/server.log
+
+# Notebooks
+whisper-jax-tpu.ipynb
+
+
+# JAX Cache
+jax_compilation_cache/
+.jax_cache/
+**/.jax_cache/
+
