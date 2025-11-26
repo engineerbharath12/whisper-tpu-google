@@ -31,6 +31,9 @@ _deps = [
     "librosa==0.11.0",
     "cached-property==2.0.1",
     "PyYAML==6.0.3",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
 ]
 
 _extras_dev_deps = [
