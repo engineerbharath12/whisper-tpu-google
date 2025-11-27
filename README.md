@@ -121,7 +121,7 @@ The installation process is now streamlined. All required packages and their cor
 pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 
 # 2. Navigate into the project directory
-cd whisper-on-jax/
+cd whisper-jax-google/
 
 # 3. Upgrade pip (recommended)
 python3 -m pip install --upgrade pip
