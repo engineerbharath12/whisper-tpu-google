@@ -257,8 +257,11 @@ class FlaxWhisperPmapPipeline:
         return_timestamps=None,
         return_language=None,
         max_length=None,
-        speed_factor: float = 1.0,
+        speed_factor: float = None,
     ):
+        if speed_factor is None:
+            speed_factor = common_config.get("speed_factor", 1.0)
+
         effective_batch_size = batch_size if batch_size is not None else self.batch_size
         if effective_batch_size % self.min_batch_size != 0:
             raise ValueError(f"Batch size must be a multiple of devices: {effective_batch_size} vs {self.min_batch_size}.")

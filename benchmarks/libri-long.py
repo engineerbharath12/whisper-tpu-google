@@ -39,14 +39,13 @@ console = Console()
 logging.set_verbosity_error()
 
 # --- Audio File Paths ---
-AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-on-jax/asr_audio_new"
+AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-jax-google/asr_audio_new"
 SHORT_AUDIO_FILE = os.path.join(AUDIO_BASE_PATH, "18s", "medical_domain_test.wav")
-LONG_AUDIO_FILE = "/home/brathinam_google_com/14Oct/whisper-on-jax/benchmarks/videoplayback.wav"
+LONG_AUDIO_FILE = "/home/brathinam_google_com/22sept/whisper-on-jax/benchmarks/videoplayback.wav"
 
 def run_long_file_benchmark(pipeline, concurrency: int):
     """Tests the pipeline processing for a single long audio file with a given concurrency."""
-    SPEED_FACTOR = 3.0
-    console.print(Panel(f"[bold blue]Test: Long-File Benchmark (On-the-fly Speed {SPEED_FACTOR}x) with Concurrency: {concurrency}[/bold blue]", expand=False))
+    console.print(Panel(f"[bold blue]Test: Long-File Benchmark (Using speed_factor from config.yml) with Concurrency: {concurrency}[/bold blue]", expand=False))
 
     if not os.path.exists(LONG_AUDIO_FILE):
         console.print(f"[bold red]❌ ERROR: Long audio file not found at {LONG_AUDIO_FILE}. Skipping test.[/bold red]")
@@ -64,13 +63,12 @@ def run_long_file_benchmark(pipeline, concurrency: int):
         task="transcribe", 
         return_timestamps=False, 
         stride_length_s=2.0,
-        speed_factor=SPEED_FACTOR
     )
     total_time = time.time() - start_time
 
     rtfx = total_audio_duration_s / total_time if total_time > 0 else float("inf")
 
-    table = Table(title=f"FlaxWhisperPipline Performance (Long File - {SPEED_FACTOR}x Speed)")
+    table = Table(title=f"FlaxWhisperPipline Performance (Long File)")
     table.add_column("Concurrent Files", justify="center", style="blue")
     table.add_column("Audio Length (s)", justify="center", style="cyan")
     table.add_column("Total Time (s)", justify="right", style="magenta")

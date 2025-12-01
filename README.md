@@ -31,7 +31,7 @@ This repository provides three distinct pipeline architectures, each tailored fo
 
 ---
 
-## **1\. Infrastructure Setup (Local Machine)**
+## **1. Infrastructure Setup (Local Machine)**
 
 These steps provision the necessary Google Cloud infrastructure. Run these commands from your local terminal.
 
@@ -84,9 +84,9 @@ gcloud alpha compute tpus tpu-vm ssh --zone $ZONE $TPU_NAME --project $PROJECT_I
 
 ```
 
-## **2\. Software Installation & Configuration (Inside TPU VM)**
+## **2. Software Installation & Configuration (Inside TPU VM)**
 
-Execute the following steps inside your TPU VM's terminal.
+Execute the following steps inside your TPU VM\'s terminal.
 
 ### **2.1 Install System Tools**
 
@@ -117,7 +117,7 @@ The installation process is now streamlined. All required packages and their cor
 
 ```bash
 # 1. Install the correct JAX version for TPUs
-# This step is crucial as it installs the TPU-specific libraries from Google's repository.
+# This step is crucial as it installs the TPU-specific libraries from Google\'s repository.
 pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 
 # 2. Navigate into the project directory
@@ -142,17 +142,28 @@ sudo apt install ffmpeg -y
 
 ```
 
-## **3\. Running the Benchmark**
+## **3. Running the Benchmark**
 
-This project uses a central `config.yml` file to manage key parameters for the transcription pipelines, such as `dtype`, `batch_size`, attention implementation, and chunking strategy. Before running a benchmark, you can review and modify this file to suit your needs.
+This project uses a central `config.yml` file to manage key parameters for the transcription pipelines, such as `dtype`, `batch_size`, attention implementation, and chunking strategy.
 
-The repository includes pre-configured scripts to benchmark both short and long audio files.
+### **3.1 Optimizing Throughput with Audio Speed-Up**
 
-### **3.1 Running the Short Audio Benchmark**
+A key feature of this repository is the ability to speed up audio during pre-processing (using FFmpeg) to increase throughput.
 
-For short audio files (under 30 seconds), use the `libri-short.py` script.
+*   **Mechanism:** Audio is sped up (e.g., 2.2x), transcribed, and timestamps are adjusted.
+*   **Configuration:** Controlled via `config.yml`:
+    ```yaml
+    common:
+      speed_factor: 2.2  # Default recommended value
+    ```
+*   **Recommendation:** Extensive benchmarking has shown that **2.2x** is the optimal speed factor. It delivers a significant boost in RTFx (~40% for Turbo) while maintaining 100% transcription accuracy.
+    *   **2.2x:** High performance, perfect accuracy.
+    *   **2.5x:** Higher performance, minor artifacts.
+    *   **3.0x:** Not recommended (hallucinations on short segments).
 
-**Note:** Ensure the `SHORT_AUDIO_FILE` variable inside the script points to a valid audio file.
+### **3.2 Running the Short Audio Benchmark**
+
+For short audio files (under 30 seconds), use the `libri-short.py` script. The script automatically picks up the `speed_factor` from `config.yml`.
 
 You can specify the model to benchmark by passing the `--model_id` argument:
 
@@ -164,11 +175,9 @@ python3 benchmarks/libri-short.py
 python3 benchmarks/libri-short.py --model_id "openai/whisper-large-v3-turbo"
 ```
 
-### **3.2 Running the Long Audio Benchmark**
+### **3.3 Running the Long Audio Benchmark**
 
-For long audio files, use the `libri-long.py` script. This script is optimized for long-form transcription and will process the audio in chunks.
-
-**Note:** Ensure the `LONG_AUDIO_FILE` variable inside the script points to a valid audio file.
+For long audio files, use the `libri-long.py` script. This script is optimized for long-form transcription and will process the audio in chunks. It also respects the `speed_factor` in `config.yml`.
 
 You can also specify the model for the long audio benchmark:
 
@@ -180,7 +189,7 @@ python3 benchmarks/libri-long.py
 python3 benchmarks/libri-long.py --model_id "openai/whisper-large-v3-turbo"
 ```
 
-### **3.3 Running the Online Server Benchmark**
+### **3.4 Running the Online Server Benchmark**
 
 For production scenarios, you should benchmark the Online Serving Pipeline (`pipeline_online.py`), which simulates a real-world load with concurrent HTTP requests.
 
@@ -200,6 +209,8 @@ python3 benchmarks/test_api_smart.py -n 1280 -c 1280
 *   `-n`: Total number of requests.
 *   `-c`: Concurrency level (simultaneous clients).
 
-### **3.4 Analyze Results**
+### **3.5 Analyze Results**
 
 For all scripts, the benchmark will first perform a one-time JIT compilation, which can take several minutes. After compilation, it will execute the transcription and print a final summary table with the performance metrics, including the Real-Time Factor (RTFx).
+
+```

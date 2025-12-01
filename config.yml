@@ -26,7 +26,7 @@ common:
 
   # Description: A predefined list of batch sizes for padding. The pipeline pads batches to the next largest size in this list to maintain a limited number of compiled JAX functions.
   # Impact: This is a performance optimization. The values should be chosen based on the target `batch_size` to minimize padding while keeping the number of compiled variations low.
-  batch_buckets: [4, 16, 32, 64, 80]
+  batch_buckets: [4, 40, 80]
 
   # Description: The length of audio chunks in seconds that are processed by the model.
   # Impact: The default is 30.0, as Whisper was trained on 30-second clips. Changing this is not recommended as it can lead to unexpected behavior or lower accuracy.
@@ -35,12 +35,11 @@ common:
   # Description: The stride between audio chunks in seconds, used for long audio files. A value of 5.0 means there is a 25-second overlap between consecutive chunks.
   # Impact: A smaller stride (more overlap) can improve accuracy on long audio files by providing more context for word timestamps, but it increases the total number of chunks to process, slightly reducing overall performance. The default is `chunk_length_s / 6.0`.
   stride_length_s: 2.0
-  speed_factor: 2.0
+  speed_factor: 2.2
   # --- Performance ---
   # Description: The number of parallel threads used for audio preprocessing (loading and chunking).
   # Impact: A higher number can speed up the initial data loading phase, especially when processing many files concurrently. If set to 0 or null, it defaults to a system-dependent value (e.g., `min(32, os.cpu_count() + 4)`).
   preprocessing_workers: 32
-  audio_path: "/home/brathinam_google_com/14Oct/whisper-on-jax/asr_audio_new"
   task: "transcribe"
   # Timeout for batch accumulation. Higher = better throughput, Lower = better latency.
   batch_assembly_timeout_s: 0.2

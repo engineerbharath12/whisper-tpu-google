@@ -96,3 +96,13 @@ jax_compilation_cache/
 .jax_cache/
 **/.jax_cache/
 
+# Generated reports and temporary markdown files
+*.md
+!README.md
+!ARCHITECTURE.md
+!early_stopping_explained.md
+
+# Unnecessary temporary files
+benchmarks/transcription validate.txt
+benchmarks/validation_transcription.txt
+benchmarks/videoplayback_5min.wav

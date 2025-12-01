@@ -21,7 +21,7 @@ from whisper_jax.pipeline import create_pipeline
 # --- Configuration ---
 console = Console()
 logging.set_verbosity_error()
-AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-on-jax/asr_audio_new"
+AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-jax-google/asr_audio_new"
 WARMUP_FILE = os.path.join(AUDIO_BASE_PATH, "18s", "medical_domain_test.wav")
 
 # --- Test Scenarios ---
@@ -72,12 +72,18 @@ def create_speedup_temp_file(input_path, speed_factor=2.0):
 
 def run_concurrent_short_file_benchmark(pipeline):
     """Tests the pipeline with concurrent requests for short audio files."""
-    SPEED_FACTOR = 1.0
-    console.print(Panel(f"[bold blue]Test: Concurrent Short-File Benchmark (Speed Factor: {SPEED_FACTOR})[/bold blue]", expand=False))
-    results_data = []
+    # Load speed factor from config.yml for display purposes only
+    try:
+        import yaml
+        CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.yml")
+        with open(CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f)
+        SPEED_FACTOR = config.get("common", {}).get("speed_factor", 1.0)
+    except Exception:
+        SPEED_FACTOR = 1.0
 
-    # Hardcoded speed factor as requested
-    # SPEED_FACTOR = 2.0 (Moved to top of function)
+    console.print(Panel(f"[bold blue]Test: Concurrent Short-File Benchmark (Using config speed_factor: {SPEED_FACTOR})[/bold blue]", expand=False))
+    results_data = []
 
     console.print("\n--- Starting Concurrent Benchmark Runs ---")
     for audio_len_s, concurrencies in CONCURRENT_BENCHMARK_SCENARIOS.items():
@@ -89,11 +95,6 @@ def run_concurrent_short_file_benchmark(pipeline):
         # Get original duration for RTFx calculation
         audio_duration_sec = librosa.get_duration(path=file_path)
         
-        # Create a single sped-up temp file to use for this batch
-        # (We avoid creating N temp files to save disk I/O overhead during the benchmark loop itself)
-        temp_speedup_file = create_speedup_temp_file(file_path, speed_factor=SPEED_FACTOR)
-        is_temp = temp_speedup_file != file_path
-
         try:
             for num_concurrent_files in concurrencies:
                 console.print(f"Testing {audio_len_s}s audio (Original) with concurrent files: [cyan]{num_concurrent_files}[/cyan]...")
@@ -101,8 +102,8 @@ def run_concurrent_short_file_benchmark(pipeline):
                 # Calculate total audio based on ORIGINAL duration
                 total_audio_s = audio_duration_sec * num_concurrent_files
                 
-                # Use the sped-up file for processing
-                benchmark_files = [temp_speedup_file] * num_concurrent_files
+                # Pass the original file path directly. Pipeline will handle speedup via config.
+                benchmark_files = [file_path] * num_concurrent_files
 
                 start_time = time.time()
                 pipeline_results = pipeline(benchmark_files, task="transcribe")
@@ -122,13 +123,11 @@ def run_concurrent_short_file_benchmark(pipeline):
                     console.print("\n--- Sample Transcription (Last Iteration) ---")
                     file_name = os.path.basename(file_path) # Show original name
                     transcription = pipeline_results[0].get('text', '[ERROR]')
-                    console.print(f"  - [yellow]{file_name} (2x speed)[/yellow]: {transcription}")
+                    console.print(f"  - [yellow]{file_name} ({SPEED_FACTOR}x speed)[/yellow]: {transcription}")
                     console.print("-" * 20 + "\n")
         
         finally:
-            # clean up temp file
-            if is_temp and os.path.exists(temp_speedup_file):
-                os.remove(temp_speedup_file)
+            pass # No cleanup needed as we aren't creating temp files
 
 
     table = Table(title=f"FlaxWhisperPipline Performance (Concurrent Short Files - Speed {SPEED_FACTOR}x)")
