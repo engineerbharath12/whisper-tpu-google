@@ -112,6 +112,6 @@ The `pipeline_online.py` implements a decoupled Producer-Consumer pattern:
     *   FastAPI sees the `Future` complete and returns the JSON response to the client.
 
 ### Optimization Checklist Used
-*   ✅ **Priming:** Process pools are forced to spawn workers at startup (dummy jobs) to avoid "cold start" lag.
-*   ✅ **JIT Warm-up:** Dummy batches of sizes `[4, 40, 80]` are run through the TPU at startup to compile XLA kernels beforehand.
-*   ✅ **Asyncio + Threading + Multiprocessing:** Using all three concurrency models where they shine best (IO, lightweight logic, heavy CPU work).
+*    **Priming:** Process pools are forced to spawn workers at startup (dummy jobs) to avoid "cold start" lag.
+*    **JIT Warm-up:** Dummy batches of sizes `[4, 40, 80]` are run through the TPU at startup to compile XLA kernels beforehand.
+*    **Asyncio + Threading + Multiprocessing:** Using all three concurrency models where they shine best (IO, lightweight logic, heavy CPU work).
