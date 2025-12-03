@@ -124,7 +124,7 @@ pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_
 cd whisper-jax-google/
 
 # 3. Upgrade pip (recommended)
-python3 -m pip install --upgrade pip
+python3.11 -m pip install --upgrade pip
 
 # 4. Install the project and all dependencies
 # This single command will install torch, transformers, librosa, etc., at their tested versions.
@@ -169,10 +169,10 @@ You can specify the model to benchmark by passing the `--model_id` argument:
 
 ```bash
 # Run with the default model (openai/whisper-large-v3)
-python3 benchmarks/libri-short.py
+python3.11 benchmarks/libri-short.py
 
 # Run with a different model, e.g., the turbo version
-python3 benchmarks/libri-short.py --model_id "openai/whisper-large-v3-turbo"
+python3.11 benchmarks/libri-short.py --model_id "openai/whisper-large-v3-turbo"
 ```
 
 ### **3.3 Running the Long Audio Benchmark**
@@ -183,10 +183,10 @@ You can also specify the model for the long audio benchmark:
 
 ```bash
 # Run with the default model
-python3 benchmarks/libri-long.py
+python3.11 benchmarks/libri-long.py
 
 # Run with the turbo model
-python3 benchmarks/libri-long.py --model_id "openai/whisper-large-v3-turbo"
+python3.11 benchmarks/libri-long.py --model_id "openai/whisper-large-v3-turbo"
 ```
 
 ### **3.4 Running the Online Server Benchmark**
@@ -196,7 +196,7 @@ For production scenarios, you should benchmark the Online Serving Pipeline (`pip
 **1. Start the Server:**
 ```bash
 cd server/
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+python3.11 -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 *Wait for the logs to show "Application startup complete" (this includes JIT compilation).*
 
@@ -204,7 +204,7 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 Open a new terminal window and run:
 ```bash
 # Benchmark with 1280 concurrent requests
-python3 benchmarks/test_api_smart.py -n 1280 -c 1280
+python3.11 benchmarks/test_api_smart.py -n 1280 -c 1280
 ```
 *   `-n`: Total number of requests.
 *   `-c`: Concurrency level (simultaneous clients).
