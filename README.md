@@ -1,7 +1,7 @@
 # Custom Implementation for Whisper-V3-large for TPUv6e 
 
 This implementation is based on the original [sanchit-gandhi/whisper-jax](https://github.com/sanchit-gandhi/whisper-jax) repository, optimized for **TPU-v6e** with the latest **JAX packages** and the **whisper-v3-large** model family.
-
+For more details on the implementation also read https://medium.com/@engineerbharath/unlocking-supersonic-speech-recognition-a-deep-dive-into-optimizing-whisper-on-tpus-6b8d734993d9
 ## Supported Models
 We have extensively tested and benchmarked the following models:
 *   **`openai/whisper-large-v3`**: The standard SOTA model.
