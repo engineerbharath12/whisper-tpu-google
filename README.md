@@ -192,27 +192,31 @@ python3.11 benchmarks/libri-long.py --model_id "openai/whisper-large-v3-turbo"
 ```
 
 ### **3.4 Running the Online Server Benchmark**
+See `server/README.md` for details on running the FastAPI server and benchmarking concurrent client requests.
 
-For production scenarios, you should benchmark the Online Serving Pipeline (`pipeline_online.py`), which simulates a real-world load with concurrent HTTP requests.
+### **3.5 Running the WER Benchmark**
+This repository includes a script to calculate the Word Error Rate (WER) using the `JiWER` library. It normalizes the text (removes punctuation, converts to lowercase) before comparison.
 
-**1. Start the Server:**
+**Requirements:**
+Ensure `jiwer` is installed (included in `setup.py`):
 ```bash
-cd server/
-python3.11 -m uvicorn main:app --host 0.0.0.0 --port 8000
+pip install jiwer
 ```
-*Wait for the logs to show "Application startup complete" (this includes JIT compilation).*
 
-**2. Run the "Smart" Benchmark Client:**
-Open a new terminal window and run:
+**Usage:**
 ```bash
-# Benchmark with 1280 concurrent requests
-python3.11 benchmarks/test_api_smart.py -n 1280 -c 1280
+python benchmarks/benchmark_wer.py --model_id openai/whisper-large-v3-turbo
 ```
-*   `-n`: Total number of requests.
-*   `-c`: Concurrency level (simultaneous clients).
+*   **Sample Data:** Sample audio files and their corresponding ground truth text files are available in the `benchmarks/WER/` directory.
+*   The script expects audio files and their corresponding ground truth text files (with the same name but `.txt` extension) in the configured directories.
+*   It outputs the WER percentage and E2E latency for each file.
 
-### **3.5 Analyze Results**
+### **3.6 Running the E2E Latency Benchmark**
+This benchmark measures the End-to-End latency and throughput (RTFx) for simulated concurrent requests.
 
-For all scripts, the benchmark will first perform a one-time JIT compilation, which can take several minutes. After compilation, it will execute the transcription and print a final summary table with the performance metrics, including the Real-Time Factor (RTFx).
-
+**Usage:**
+```bash
+python benchmarks/e2e_latency.py --model_id openai/whisper-large-v3-turbo
 ```
+*   This tests concurrency levels of 1, 80, and 200 by default.
+*   It reports P50/P99 latency and Throughput (RTFx).

@@ -21,7 +21,7 @@ from whisper_jax.pipeline import create_pipeline
 # --- Configuration ---
 console = Console()
 logging.set_verbosity_error()
-AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-jax-google/asr_audio_new"
+AUDIO_BASE_PATH = "/home/brathinam_google_com/whisper/26dec/whisper-tpu-google/asr_audio_new"
 WARMUP_FILE = os.path.join(AUDIO_BASE_PATH, "18s", "medical_domain_test.wav")
 
 # --- Test Scenarios ---
@@ -29,7 +29,7 @@ CONCURRENT_BENCHMARK_SCENARIOS = {
     2: [1, 50, 200],
     8: [1, 50, 200],
     14: [1, 50, 200],
-    18: [1, 50, 200, 400, 800, 1280],
+    18: [1, 80, 200],
 }
 
 SHORT_AUDIO_FILES = {
@@ -161,9 +161,12 @@ if __name__ == "__main__":
     try:
         from jax import config
         import warnings
-        JAX_CACHE_DIR = os.path.join(os.path.dirname(__file__), ".jax_cache")
+        # Use specific cache directory
+        JAX_CACHE_DIR = "/home/brathinam_google_com/whisper/26dec"
         os.makedirs(JAX_CACHE_DIR, exist_ok=True)
         config.update("jax_compilation_cache_dir", JAX_CACHE_DIR)
+        config.update("jax_persistent_cache_min_entry_size_bytes", 0)
+        config.update("jax_persistent_cache_min_compile_time_secs", 0)
         console.print(f"--- JAX Cache enabled. Using directory: {JAX_CACHE_DIR} ---")
     except ImportError:
         warnings.warn("Could not configure JAX cache.")

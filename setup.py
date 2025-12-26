@@ -34,6 +34,9 @@ _deps = [
     "fastapi",
     "uvicorn[standard]",
     "python-multipart",
+    "jiwer>=3.0.0",
+    "huggingface_hub",
+    "hf_transfer",
 ]
 
 _extras_dev_deps = [
@@ -63,6 +66,19 @@ with open(os.path.join(here, "whisper_jax", "__init__.py"), encoding="utf-8") as
     else:
         raise RuntimeError("Unable to find version string.")
 
+from setuptools.command.install import install
+import subprocess
+
+class PostInstallCommand(install):
+    """Post-installation for installation mode."""
+    def run(self):
+        install.run(self)
+        try:
+            subprocess.run(["git", "lfs", "install"], check=True)
+            print("Git LFS installed successfully.")
+        except Exception as e:
+            print(f"Warning: Failed to install Git LFS: {e}")
+
 setup(
     name="whisper_jax",
     version=version,
@@ -74,5 +90,8 @@ setup(
     extras_require={
         "dev": [_extras_dev_deps],
         "endpoint": [_extras_endpoint_deps],
+    },
+    cmdclass={
+        'install': PostInstallCommand,
     },
 )

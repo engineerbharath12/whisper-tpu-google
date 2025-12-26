@@ -39,22 +39,21 @@ console = Console()
 logging.set_verbosity_error()
 
 # --- Audio File Paths ---
-AUDIO_BASE_PATH = "/home/brathinam_google_com/14Oct/whisper-jax-google/asr_audio_new"
+AUDIO_BASE_PATH = "/home/brathinam_google_com/whisper/26dec/whisper-tpu-google/asr_audio_new"
 SHORT_AUDIO_FILE = os.path.join(AUDIO_BASE_PATH, "18s", "medical_domain_test.wav")
-LONG_AUDIO_FILE = "/home/brathinam_google_com/22sept/whisper-on-jax/benchmarks/videoplayback.wav"
 
-def run_long_file_benchmark(pipeline, concurrency: int):
+def run_long_file_benchmark(pipeline, concurrency: int, audio_path: str):
     """Tests the pipeline processing for a single long audio file with a given concurrency."""
     console.print(Panel(f"[bold blue]Test: Long-File Benchmark (Using speed_factor from config.yml) with Concurrency: {concurrency}[/bold blue]", expand=False))
 
-    if not os.path.exists(LONG_AUDIO_FILE):
-        console.print(f"[bold red]❌ ERROR: Long audio file not found at {LONG_AUDIO_FILE}. Skipping test.[/bold red]")
+    if not os.path.exists(audio_path):
+        console.print(f"[bold red]❌ ERROR: Long audio file not found at {audio_path}. Skipping test.[/bold red]")
         return
 
-    total_audio_duration_s = librosa.get_duration(path=LONG_AUDIO_FILE) * concurrency
+    total_audio_duration_s = librosa.get_duration(path=audio_path) * concurrency
     console.print(f"\n--- 📊 Starting Benchmark Run ({concurrency} concurrent file(s), {total_audio_duration_s:.2f}s total audio) ---")
     
-    benchmark_files = [LONG_AUDIO_FILE] * concurrency
+    benchmark_files = [audio_path] * concurrency
     
     start_time = time.time()
     # Pass speed_factor to the pipeline directly
@@ -62,7 +61,6 @@ def run_long_file_benchmark(pipeline, concurrency: int):
         benchmark_files, 
         task="transcribe", 
         return_timestamps=False, 
-        stride_length_s=2.0,
     )
     total_time = time.time() - start_time
 
@@ -76,7 +74,13 @@ def run_long_file_benchmark(pipeline, concurrency: int):
 
     table.add_row(str(concurrency), f"{total_audio_duration_s:.1f}", f"{total_time:.4f}", f"{rtfx:.2f}x")
     console.print(table)
-    console.print(f"First 400 chars of transcription: '{results[0].get('text', '')[:400]}...'")
+    
+    # Save full transcription
+    full_text = results[0].get('text', '')
+    with open("transcription.txt", "w") as f:
+        f.write(full_text)
+    console.print(f"Full transcription saved to transcription.txt")
+    console.print(f"First 400 chars of transcription: '{full_text[:400]}...'")
 
     # --- End of Main Function ---
 
@@ -101,15 +105,24 @@ if __name__ == "__main__":
         default=10,
         help="Number of concurrent files to process.",
     )
+    parser.add_argument(
+        "--audio_path",
+        type=str,
+        default="26dec/whisper-tpu-google/benchmarks/videoplayback_5min.wav",
+        help="Path to the long audio file.",
+    )
     args = parser.parse_args()
 
     # ===== JAX CACHE CONFIGURATION =====
     try:
         from jax import config
         import warnings
-        JAX_CACHE_DIR = os.path.join(os.path.dirname(__file__), ".jax_cache")
+        # Use specific cache directory
+        JAX_CACHE_DIR = "/home/brathinam_google_com/whisper/26dec"
         os.makedirs(JAX_CACHE_DIR, exist_ok=True)
         config.update("jax_compilation_cache_dir", JAX_CACHE_DIR)
+        config.update("jax_persistent_cache_min_entry_size_bytes", 0)
+        config.update("jax_persistent_cache_min_compile_time_secs", 0)
         console.print(f"--- JAX Cache enabled. Using directory: {JAX_CACHE_DIR} ---")
     except ImportError:
         warnings.warn("Could not configure JAX cache.")
@@ -144,7 +157,7 @@ if __name__ == "__main__":
         console.print("--- Comprehensive Warm-up Complete ---")
 
         # Run only the long file benchmark
-        run_long_file_benchmark(long_audio_pipeline, args.concurrency)
+        run_long_file_benchmark(long_audio_pipeline, args.concurrency, args.audio_path)
         
         console.print("\n" * 5)
 

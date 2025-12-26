@@ -145,9 +145,9 @@ class FlaxWhisperOnlinePipeline:
         # Warm-up
         logger.info(f"Warming up JIT kernels for buckets: {self.batch_buckets}...")
         dummy_audio_len = int(30 * 16000)
+        # Reduced warm-up to save time, assuming English/Default is primary use case for benchmarks
         warmup_configs = [
             {"language": None, "task": "transcribe"}, 
-            {"language": "en", "task": "transcribe"}
         ]
 
         for b_size in self.batch_buckets:
@@ -202,6 +202,13 @@ class FlaxWhisperOnlinePipeline:
 
     def _preprocess_request(self, audio_data, request_id, kwargs):
         try:
+            if isinstance(audio_data, str):
+                if os.path.exists(audio_data):
+                    with open(audio_data, "rb") as f:
+                        audio_data = f.read()
+                else:
+                    raise FileNotFoundError(f"Audio file not found: {audio_data}")
+
             if isinstance(audio_data, np.ndarray):
                 waveform = audio_data.astype(np.float32)
             else:

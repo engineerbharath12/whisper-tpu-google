@@ -148,6 +148,10 @@ class FlaxWhisperPmapPipeline:
         **kwargs):
         if speed_factor is None:
             speed_factor = common_config.get("speed_factor", 1.0)
+        
+        # FIX: Default to timestamps=True for better stitching in long audio
+        if return_timestamps is None:
+            return_timestamps = True
             
         effective_batch_size = batch_size if batch_size is not None else self.batch_size
         if effective_batch_size % self.min_batch_size != 0:
@@ -220,34 +224,42 @@ class FlaxWhisperPmapPipeline:
             stride = round(stride_s * self.feature_extractor.sampling_rate)
             step = chunk_len - stride * 2
 
+            # Read first chunk
             in_bytes = process.stdout.read(chunk_len * 4)
             if not in_bytes:
                 return
 
             waveform = np.frombuffer(in_bytes, dtype=np.float32)
-            
-            stride_info = (len(waveform), 0, stride if len(waveform) == chunk_len else 0)
-            future = Future()
-            futures_list.append(future)
-            job = {"audio": waveform, "stride": stride_info, "future": future}
-            job_queue.put(job)
+            is_first = True
 
             while True:
+                # Try to read next part (lookahead)
                 next_in_bytes = process.stdout.read(step * 4)
+                
                 if not next_in_bytes:
+                    # No more data, submit current waveform as last chunk (right stride 0)
+                    stride_info = (len(waveform), 0 if is_first else stride, 0)
+                    future = Future()
+                    futures_list.append(future)
+                    job = {"audio": waveform, "stride": stride_info, "future": future}
+                    job_queue.put(job)
                     break
-
+                
+                # More data exists, submit current waveform with right stride
+                stride_info = (len(waveform), 0 if is_first else stride, stride if len(waveform) == chunk_len else 0)
+                future = Future()
+                futures_list.append(future)
+                job = {"audio": waveform, "stride": stride_info, "future": future}
+                job_queue.put(job)
+                
+                is_first = False
+                
+                # Prepare next waveform
                 new_waveform_part = np.frombuffer(next_in_bytes, dtype=np.float32)
                 waveform = np.concatenate([waveform[-stride*2:], new_waveform_part])
 
                 if len(waveform) == 0:
                     break
-
-                stride_info = (len(waveform), stride, stride if len(waveform) == chunk_len else 0)
-                future = Future()
-                futures_list.append(future)
-                job = {"audio": waveform, "stride": stride_info, "future": future}
-                job_queue.put(job)
 
         except Exception as e:
             logger.error(f"Streaming worker failed for {file_path}: {e}")
@@ -378,18 +390,15 @@ class FlaxWhisperPmapPipeline:
     def _final_decode(self, unpacked_outputs, return_timestamps, return_language):
         time_precision = self.feature_extractor.chunk_length / self.model.config.max_source_positions
 
-        if return_timestamps:
-            text, optional = self.tokenizer._decode_asr(
-                unpacked_outputs,
-                return_timestamps=return_timestamps,
-                return_language=return_language,
-                time_precision=time_precision,
-            )
-            return {"text": text, **optional}
-        else:
-            batch_token_ids = [output_dict["tokens"].flatten().tolist() for output_dict in unpacked_outputs]
-            decoded_texts = self.processor.batch_decode(batch_token_ids, skip_special_tokens=self.skip_special_tokens)
-            return {"text": " ".join(decoded_texts)}
+        # Always use _decode_asr to ensure stride stitching is handled correctly.
+        # Naive batch_decode + join results in repeated text for strided inference.
+        text, optional = self.tokenizer._decode_asr(
+            unpacked_outputs,
+            return_timestamps=return_timestamps,
+            return_language=return_language,
+            time_precision=time_precision,
+        )
+        return {"text": text, **optional}
 
     def _partial_postprocess(self, pred_ids, stride):
         out = {"tokens": pred_ids[None, :]}
